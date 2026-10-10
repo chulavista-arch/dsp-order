@@ -72,6 +72,26 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
 .steps { display:flex; gap:4px; margin-top:6px; }
 .steps i { flex:1; height:5px; border-radius:3px; background:var(--line); }
 .steps i.on { background:var(--green); }
+.tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.tab { width:auto; background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:999px; padding:7px 12px; font:600 13px/1 inherit; display:flex; gap:6px; align-items:center; }
+.tab:hover { background:#f3f7fc; }
+.tab b { background:#e6f0fb; color:var(--blue-d); border-radius:999px; padding:2px 7px; font-size:12px; }
+.tab.on { background:var(--blue-d); color:#fff; border-color:var(--blue-d); }
+.tab.on b { background:#fff; }
+.tab.hot b { background:var(--bad); color:#fff; }
+.ocard { border-left:5px solid var(--line); }
+.ocard.red { border-left-color:var(--bad); }
+.ocard.amber { border-left-color:#e0a100; }
+.ocard.cancelled { opacity:.65; }
+.flag { margin-top:8px; font-weight:700; font-size:14px; }
+.flag.red { color:var(--bad); }
+.flag.amber { color:#9a6b00; }
+.ogrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:10px; }
+@media (max-width:760px) { .ogrid { grid-template-columns:1fr 1fr; } }
+.ilabel { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:700; }
+.itext { font-size:13px; white-space:pre-line; word-break:break-word; }
+.notes { margin-top:8px; white-space:pre-line; }
+.btnrow a { align-self:center; font-size:13px; color:var(--blue-d); }
 </style>
 <script>
 (function () {
