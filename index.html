@@ -92,6 +92,9 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
 .itext { font-size:13px; white-space:pre-line; word-break:break-word; }
 .notes { margin-top:8px; white-space:pre-line; }
 .btnrow a { align-self:center; font-size:13px; color:var(--blue-d); }
+
+.chg[hidden] { display: none; }
+.chg input[type=datetime-local] { width: auto; }
 </style>
 <script>
 (function () {
@@ -153,7 +156,7 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
     <button type="button" class="ghost" id="addCand" style="margin-bottom:14px">+ Add another candidate</button>
 
     <div class="card"><h2>Test and time</h2>
-      <label for="test">Test</label><select name="test" id="test"></select>
+      <label for="test">Test</label><select name="test" id="test"></select><div class="ferr" id="testErr"></div>
       <label for="clinic">Clinic</label><select name="clinic" id="clinic"></select>
       <div class="clinic" id="clinicInfo"></div>
       <label>When do they arrive at the clinic?</label>
@@ -195,6 +198,7 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
   <div id="ordersView" hidden>
     <div class="card"><h2 id="ordersTitle">My orders</h2>
       <p class="hint">Updates on its own. Results are emailed to you - this page only shows where each order stands.</p>
+      <div id="ordersMsg" class="hint"></div>
       <div id="ordersList" class="loading">Loading...</div>
       <div class="btnrow" style="margin-top:12px"><button type="button" class="ghost small" id="ordersNew">+ New order</button>
         <button type="button" class="ghost small" id="ordersRefresh">Refresh</button></div>
@@ -338,7 +342,7 @@ function addCandidate(focus){
   var n = $('cands').children.length; if (n >= MAX_CANDS) return;
   var node = $('candTpl').content.firstElementChild.cloneNode(true);
   [].slice.call(node.querySelectorAll('input')).forEach(wire);
-  node.querySelector('.cremove').addEventListener('click', function(){ node.remove(); renumber(); });
+  node.querySelector('.cremove').addEventListener('click', function(){ node.remove(); renumber(); if (CFG) refresh(); });
   $('cands').appendChild(node); renumber();
   if (focus) { node.scrollIntoView({ block: 'start' }); node.querySelector('input').focus(); }
 }
@@ -357,23 +361,56 @@ function readCandidates(){
 // ---------------- clinic hours + one-tap times
 function pad(n){ return (n < 10 ? '0' : '') + n; }
 function localIso(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes()); }
-function earliest(){ var d = new Date(Date.now() + CFG.lead*60000); d.setSeconds(0,0); var m = d.getMinutes(); d.setMinutes(m + (5 - m % 5) % 5); return d; }
+// All time math happens in Pacific wall time, whatever zone this browser is set to: a Date whose local
+// fields read as the time in San Diego. The server checks the same rule in Pacific time.
+function wall(ms){
+  try {
+    var p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date(ms));
+    var g = {}; p.forEach(function(x){ g[x.type] = +x.value; });
+    return new Date(g.year, g.month - 1, g.day, g.hour % 24, g.minute, g.second);
+  } catch(e) { return new Date(ms); }
+}
+function wallNow(){ return wall(Date.now()); }
+function ymd(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function hm(d){ return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function candCount(){ return Math.max(1, F.querySelectorAll('.cand').length); }
+// The order must leave the desk LEAD minutes, plus a few per candidate already waiting, inside one stretch
+// of desk hours; if today can't fit it, it starts at the next opening.
+function earliest(){
+  var now = wallNow(); now.setSeconds(0, 0);
+  var dk = CFG.desk || { days: [1,2,3,4,5], open: '08:00', close: '17:30', closed: [] };
+  var need = (CFG.lead + (CFG.queueMin || 0) * Math.max(0, (CFG.queued || 0) + candCount() - 1)) * 60000;
+  var day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var out = null;
+  for (var i = 0; i < 60 && !out; i++) {
+    if (dk.days.indexOf(day.getDay()) >= 0 && (dk.closed || []).indexOf(ymd(day)) < 0) {
+      var o = dk.open.split(':'), c = dk.close.split(':');
+      var open = new Date(day.getFullYear(), day.getMonth(), day.getDate(), +o[0], +o[1]);
+      var close = new Date(day.getFullYear(), day.getMonth(), day.getDate(), +c[0], +c[1]);
+      var start = Math.max(now.getTime(), open.getTime());
+      if (start + need <= close.getTime()) out = new Date(start + need);
+    }
+    day.setDate(day.getDate() + 1);
+  }
+  var d = out || new Date(now.getTime() + need); var m = d.getMinutes(); d.setMinutes(m + (5 - m % 5) % 5); return d;
+}
 function t12(hhmm){ var p = hhmm.split(':'); var h = +p[0]; var ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + p[1] + ' ' + ap; }
 function hours(c){ var n=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var d = c.days.join(',')==='1,2,3,4,5' ? 'Mon-Fri' : c.days.map(function(x){return n[x];}).join(', '); return d + ', arrivals ' + t12(c.first) + ' to ' + t12(c.last); }
 function clinicNow(){ return CFG.clinics.filter(function(c){ return c.name === $('clinic').value; })[0]; }
-function openAt(c, d){ var hm = pad(d.getHours()) + ':' + pad(d.getMinutes()); return c.days.indexOf(d.getDay()) >= 0 && hm >= c.first && hm <= c.last; }
+function openAt(c, d){ var t = hm(d); return c.days.indexOf(d.getDay()) >= 0 && t >= c.first && t <= c.last && (c.closed || []).indexOf(ymd(d)) < 0; }
 // First arrival time at or after `from` that the clinic accepts (5-minute steps, up to 14 days ahead).
 function nextOpen(c, from){
   var d = new Date(from.getTime()); d.setSeconds(0,0); var m = d.getMinutes(); d.setMinutes(m + (5 - m % 5) % 5);
   for (var i = 0; i < 14 * 288; i++) { if (openAt(c, d)) return d;
     var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
-    if (c.days.indexOf(d.getDay()) < 0 || hm > c.last) { d.setDate(d.getDate() + 1); var f = c.first.split(':'); d.setHours(+f[0], +f[1], 0, 0); }
+    if (c.days.indexOf(d.getDay()) < 0 || hm > c.last || (c.closed || []).indexOf(ymd(d)) >= 0) { d.setDate(d.getDate() + 1); var f = c.first.split(':'); d.setHours(+f[0], +f[1], 0, 0); }
     else if (hm < c.first) { var g = c.first.split(':'); d.setHours(+g[0], +g[1], 0, 0); }
     else d = new Date(d.getTime() + 300000); }
   return null;
 }
 function whenLabel(d){
-  var today = new Date(); var tm = new Date(); tm.setDate(tm.getDate() + 1);
+  var today = wallNow(); var tm = wallNow(); tm.setDate(tm.getDate() + 1);
   var day = d.toDateString() === today.toDateString() ? 'Today' : d.toDateString() === tm.toDateString() ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   return day + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
@@ -406,8 +443,9 @@ function arrivalError(v){
   if (!WHEN) return 'Choose when the candidate arrives.';
   if (!v) return 'Pick the date and time.';
   var d = new Date(v);
-  if (d.getTime() < earliest().getTime() - 60000) return 'Must be at least ' + CFG.lead + ' minutes from now. Earliest: ' + $('earliest').textContent + '.';
-  if (d.getTime() > Date.now() + 60 * 86400000) return 'Pick a date within the next 60 days.';
+  if (d.getTime() < earliest().getTime() - 60000) return 'We need ' + CFG.lead + ' minutes while our desk is open to place it. Earliest: ' + $('earliest').textContent + '.';
+  if (d.getTime() > wallNow().getTime() + 60 * 86400000) return 'Pick a date within the next 60 days.';
+  if ((c.closed || []).indexOf(ymd(d)) >= 0) return c.name + ' is closed that day. Pick another day.';
   if (!openAt(c, d)) return c.name + ' takes ' + hours(c) + '.';
   return '';
 }
@@ -426,7 +464,10 @@ function start(cfg){
   CFG = cfg;
   $('leadA').textContent = CFG.lead;
   CFG.dsps.forEach(function(n){ var o = document.createElement('option'); o.value = n; $('dspList').appendChild(o); });
+  var t0 = document.createElement('option'); t0.value = ''; t0.textContent = 'Choose the test'; $('test').appendChild(t0);
   CFG.tests.forEach(function(n){ var o = document.createElement('option'); o.textContent = n; $('test').appendChild(o); });
+  try { var lastTest = localStorage.getItem('dspOrderTest'); if (CFG.tests.indexOf(lastTest) >= 0) $('test').value = lastTest; } catch(e) {}
+  $('test').addEventListener('change', function(){ $('testErr').textContent = ''; try { localStorage.setItem('dspOrderTest', $('test').value); } catch(e) {} });
   CFG.clinics.forEach(function(c){ var o = document.createElement('option'); o.textContent = c.name; $('clinic').appendChild(o); });
   var help = $('help'); help.hidden = false; help.innerHTML = '<b>Questions or help</b><br>';
   CFG.help.forEach(function(h){ var p = document.createElement('div'); p.textContent = h[0] + ': '; var a = document.createElement('a'); a.href = 'tel:' + h[1].replace(/\D/g,''); a.textContent = h[1]; p.appendChild(a); help.appendChild(p); });
@@ -438,7 +479,7 @@ function start(cfg){
   $('doneOrders').addEventListener('click', showOrders);
   $('ordersNew').addEventListener('click', function(){ location.href = location.pathname + (TOKEN ? '?r=' + TOKEN : ''); });
   $('ordersRefresh').addEventListener('click', loadOrders);
-  $('addCand').addEventListener('click', function(){ addCandidate(true); });
+  $('addCand').addEventListener('click', function(){ addCandidate(true); refresh(); });
   [].slice.call(F.querySelectorAll('#empCard input')).forEach(wire);
   $('arrival').addEventListener('change', function(){ $('whenErr').textContent = ''; });
   addCandidate(false);
@@ -465,6 +506,7 @@ F.addEventListener('submit', function(ev){
     tidy(el); var p = fieldError(el); show(el, p);
     if (p) { fr.push({ field: el.name || el.getAttribute('data-f'), problem: p }); if (!first) first = el; }
   });
+  if (!$('test').value) { $('testErr').textContent = 'Choose the test - rapid or lab-based.'; fr.push({ field: 'other', problem: 'no test chosen' }); if (!first) first = $('test'); }
   var arr = arrivalValue(); var ap = arrivalError(arr);
   if (ap) { $('whenErr').textContent = ap; fr.push({ field: 'arrival', problem: ap.replace(/Earliest: .*/, 'Earliest: [time]') }); }
   friction(fr);
@@ -533,7 +575,16 @@ function showOrders(){ $('subTitle').textContent = 'My orders'; views('ordersVie
   if (!ORDERS_TIMER) ORDERS_TIMER = setInterval(function(){ if (!$('ordersView').hidden) loadOrders(); }, 60000); }
 function loadOrders(){
   $('ordersList').className = 'loading'; $('ordersList').textContent = 'Loading...';
-  google.script.run.withSuccessHandler(function(r){
+  google.script.run.withSuccessHandler(drawOrders).withFailureHandler(function(e){ $('ordersList').className = 'err'; $('ordersList').textContent = msg(e); }).getMyOrders(TOKEN);
+}
+var MY_BUSY = false;
+function myAction(fn, args, note){
+  if (MY_BUSY) return; MY_BUSY = true; $('ordersMsg').className = 'hint'; $('ordersMsg').textContent = note;
+  var run = google.script.run.withSuccessHandler(function(r){ MY_BUSY = false; $('ordersMsg').textContent = 'Done - everyone involved was emailed.'; drawOrders(r); })
+    .withFailureHandler(function(e){ MY_BUSY = false; $('ordersMsg').className = 'err'; $('ordersMsg').textContent = msg(e); });
+  run[fn].apply(run, [TOKEN].concat(args));
+}
+function drawOrders(r){
     $('ordersTitle').textContent = 'My orders - ' + r.me.dsp;
     var box = $('ordersList'); box.className = ''; box.innerHTML = '';
     if (!r.orders.length) { box.textContent = 'No orders in the last 90 days.'; return; }
@@ -541,14 +592,26 @@ function loadOrders(){
       var d = document.createElement('div'); d.className = 'ord' + (o.cancelled ? ' cancelled' : '');
       var top = document.createElement('div'); top.className = 'ordtop';
       var n = document.createElement('b'); n.textContent = o.cand; top.appendChild(n);
-      var s = document.createElement('span'); s.className = 'badge' + (o.step >= 3 ? ' done' : o.cancelled ? ' warn' : ''); s.textContent = o.status; top.appendChild(s);
+      var s = document.createElement('span'); s.className = 'badge' + (o.done ? ' done' : o.cancelled ? ' warn' : ''); s.textContent = o.status; top.appendChild(s);
       d.appendChild(top);
       var m = document.createElement('div'); m.className = 'hint'; m.textContent = o.orderNo + ' - ' + o.arrival + ' - ' + o.clinic; d.appendChild(m);
       if (!o.cancelled) { var bar = document.createElement('div'); bar.className = 'steps';
         for (var i = 0; i < 4; i++) { var dot = document.createElement('i'); if (i <= o.step) dot.className = 'on'; bar.appendChild(dot); } d.appendChild(bar); }
+      if (o.canChange && o.arrivalIso && new Date(o.arrivalIso) > wallNow()) {
+        var row = document.createElement('div'); row.className = 'btnrow';
+        var chg = document.createElement('div'); chg.className = 'chg btnrow'; chg.hidden = true;
+        var inp = document.createElement('input'); inp.type = 'datetime-local'; inp.step = 300; inp.value = o.arrivalIso; chg.appendChild(inp);
+        var save = document.createElement('button'); save.type = 'button'; save.className = 'small'; save.textContent = 'Save new time';
+        save.addEventListener('click', function(){ if (!inp.value) return; myAction('myChangeTime', [o.orderNo, inp.value], 'Saving the new time...'); });
+        chg.appendChild(save);
+        var b1 = document.createElement('button'); b1.type = 'button'; b1.className = 'small ghost'; b1.textContent = 'Change time';
+        b1.addEventListener('click', function(){ chg.hidden = !chg.hidden; });
+        var b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'small ghost'; b2.textContent = 'Cancel order';
+        b2.addEventListener('click', function(){ if (confirm('Cancel the drug test for ' + o.cand + '? We email the candidate not to go.')) myAction('myCancel', [o.orderNo, 'cancelled by the DSP'], 'Cancelling...'); });
+        row.appendChild(b1); row.appendChild(b2); d.appendChild(row); d.appendChild(chg);
+      }
       box.appendChild(d);
     });
-  }).withFailureHandler(function(e){ $('ordersList').className = 'err'; $('ordersList').textContent = msg(e); }).getMyOrders(TOKEN);
 }
 
 // ---------------- problem report

@@ -93,6 +93,9 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
 .itext { font-size:13px; white-space:pre-line; word-break:break-word; }
 .notes { margin-top:8px; white-space:pre-line; }
 .btnrow a { align-self:center; font-size:13px; color:var(--blue-d); }
+
+.chg[hidden] { display: none; }
+.chg input[type=datetime-local] { width: auto; }
 </style>
 <script>
 (function () {
@@ -125,9 +128,11 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
   <div class="err" id="err"></div>
   <div id="list"><div class="card loading">Loading...</div></div>
   <div class="card hint">
-    <b>How it flows:</b> New order &rarr; place it in WorkForce &rarr; <b>Send authorization</b> (candidate gets it, DSP copied)
-    &rarr; candidate tests &rarr; <b>Collected</b> &rarr; <b>Send result</b> (DSP gets it - approved emails only). Every step is copied to the team.
-    The highlighted button on each order is the next step. Red means it needs you now.
+    <b>How it flows:</b> New order &rarr; Chula Vista places it in WorkForce &rarr; <b>Send authorization</b> (candidate gets it, DSP copied)
+    &rarr; candidate tests &rarr; <b>Collected</b> (or <b>No show</b>) &rarr; <b>Send result</b> (DSP gets it - approved emails only).
+    A rapid that goes to the lab: <b>Sent to lab</b> (desk only). The solid button is the next step. Red means it needs you now.<br>
+    <b>Who does what:</b> Chula Vista places orders and sends documents. El Cajon answers DSPs from this page and acts on
+    ESCALATION emails (call Arthur, else Change time). Late orders email a reminder by themselves; an end-of-day check comes around 6 PM.
     <div id="who" style="margin-top:6px"></div>
   </div>
   <input type="file" id="file" accept=".pdf,image/*" hidden>
@@ -135,12 +140,15 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
 <script>
 var KEY = "" || (location.hash.match(/key=([0-9a-f]+)/) || [])[1] || '';
 var pending = null; var LIST = []; var FILTER = 'open'; var BUSY = false;
+// tab: which filter tab the stage lives in; dot: how many of the 4 progress dots are lit.
 var STAGES = [
-  { status: 'New - order at clinic', key: 'order', label: 'Needs ordering', next: 'auth' },
-  { status: 'Authorization sent', key: 'test', label: 'Waiting for the test', next: 'collected' },
-  { status: 'Collected', key: 'result', label: 'Waiting for the result', next: 'result' },
-  { status: 'Result sent', key: 'done', label: 'Done', next: '' },
+  { status: 'New - order at clinic', key: 'order', tab: 'order', label: 'Needs ordering', next: 'auth', dot: 0 },
+  { status: 'Authorization sent', key: 'test', tab: 'test', label: 'Waiting for the test', next: 'collected', dot: 1 },
+  { status: 'Collected', key: 'result', tab: 'result', label: 'Waiting for the result', next: 'result', dot: 2 },
+  { status: 'Sent to lab', key: 'lab', tab: 'result', label: 'At the lab (DSP sees "result pending")', next: 'result', dot: 2 },
+  { status: 'Result sent', key: 'done', tab: 'done', label: 'Done', next: '', dot: 3 },
 ];
+function isOpen(s){ return s >= 0 && STAGES[s].key !== 'done'; }
 var $ = function(id){ return document.getElementById(id); };
 function who(){ var w = ''; try { w = localStorage.getItem('dspDeskWho') || ''; } catch(e) {}
   if (!w) { w = (prompt('Your name (shows on the sheet as who did it):') || 'desk').trim(); try { localStorage.setItem('dspDeskWho', w); } catch(e) {} }
@@ -155,16 +163,19 @@ function businessDaysSince(ms){ var d = new Date(ms); var n = 0; var now = new D
 // What needs attention, worst first. Returns { level: 'red'|'amber'|'', text }.
 function flagOf(o){
   var st = stageOf(o); var now = Date.now(); var a = o.arrivalMs || 0;
-  if (st === 0 && a) {
+  var key = st >= 0 ? STAGES[st].key : '';
+  var billing = o.billingSetUp ? '' : ' Billing not set up for ' + o['DSP'] + ' - fill the DSPs tab.';
+  if (key === 'order' && a) {
     if (now > a) return { level: 'red', text: 'Arrival time passed ' + ago(now - a) + ' ago and no authorization was sent.' };
     if (a - now < 60 * 60000) return { level: 'red', text: 'Candidate arrives in ' + ago(a - now) + ' - place it and send the authorization now.' };
-    return { level: '', text: 'Arrives in ' + ago(a - now) + '.' };
+    return { level: '', text: 'Arrives in ' + ago(a - now) + '.' + billing };
   }
-  if (st === 1 && a && now > a + 2 * 3600000) return { level: 'amber', text: 'Arrival was ' + ago(now - a) + ' ago. Did they show? Mark Collected, or Cancel if they did not.' };
-  if (st === 2 && a) { var bd = businessDaysSince(a);
+  if (key === 'test' && a && now > a + 2 * 3600000) return { level: 'amber', text: 'Arrival was ' + ago(now - a) + ' ago. Did they show? Check WorkForce, then Collected or No show.' };
+  if ((key === 'result' || key === 'lab') && a) { var bd = businessDaysSince(a);
     if (bd >= 3) return { level: 'red', text: 'Result overdue - collected ' + bd + ' business days ago.' };
     if (!o.emailApproved) return { level: 'amber', text: 'DSP email not approved yet - you will be asked to confirm it when you send the result.' }; }
-  return { level: '', text: '' };
+  // Billing is a to-do for the DSPs tab, not an emergency: shown, never counted in "Needs you now".
+  return { level: '', text: isOpen(st) ? billing.trim() : '' };
 }
 
 function draw(list){
@@ -175,8 +186,8 @@ function draw(list){
   // counts + filter tabs
   var counts = { open: 0, order: 0, test: 0, result: 0, done: 0, cancelled: 0, attention: 0 };
   LIST.forEach(function(o){ var s = stageOf(o); var f = flagOf(o);
-    if (s === -1) counts.cancelled++; else { counts[STAGES[s].key]++; if (s < 3) counts.open++; }
-    if (f.level && s >= 0 && s < 3) counts.attention++; });
+    if (s === -1) counts.cancelled++; else { counts[STAGES[s].tab]++; if (isOpen(s)) counts.open++; }
+    if (f.level && isOpen(s)) counts.attention++; });
   var tabs = [['open', 'Open', counts.open], ['attention', 'Needs you now', counts.attention], ['order', 'Needs ordering', counts.order],
     ['test', 'Waiting for test', counts.test], ['result', 'Waiting for result', counts.result], ['done', 'Done', counts.done], ['cancelled', 'Cancelled', counts.cancelled]];
   var tb = $('tabs'); tb.innerHTML = '';
@@ -186,10 +197,10 @@ function draw(list){
   // filter + sort: red first, then amber, then earliest stage, then earliest arrival
   var rank = { red: 0, amber: 1, '': 2 };
   var shown = LIST.filter(function(o){ var s = stageOf(o); var f = flagOf(o);
-    if (FILTER === 'open') return s >= 0 && s < 3;
-    if (FILTER === 'attention') return s >= 0 && s < 3 && !!f.level;
+    if (FILTER === 'open') return isOpen(s);
+    if (FILTER === 'attention') return isOpen(s) && !!f.level;
     if (FILTER === 'cancelled') return s === -1;
-    return s >= 0 && STAGES[s].key === FILTER; })
+    return s >= 0 && STAGES[s].tab === FILTER; })
     .sort(function(a, b){ var fa = flagOf(a), fb = flagOf(b);
       return (rank[fa.level] - rank[fb.level]) || (stageOf(a) - stageOf(b)) || ((a.arrivalMs || 0) - (b.arrivalMs || 0)); });
   if (FILTER === 'done' || FILTER === 'cancelled') shown.reverse();
@@ -203,9 +214,10 @@ function card(o){
   var c = el('div', null, 'card ocard' + (f.level ? ' ' + f.level : '') + (s === -1 ? ' cancelled' : ''));
   var top = el('div', null, 'ordtop');
   var name = el('div'); name.appendChild(el('b', o['Candidate'])); name.appendChild(el('span', '  ' + o['Order #'], 'hint')); top.appendChild(name);
-  top.appendChild(el('span', s === -1 ? 'Cancelled' : STAGES[s].label, 'badge' + (s === 0 ? ' new' : s === 3 ? ' done' : s === -1 ? ' warn' : '')));
+  var key = s >= 0 ? STAGES[s].key : '';
+  top.appendChild(el('span', s === -1 ? 'Cancelled' : STAGES[s].label, 'badge' + (key === 'order' ? ' new' : key === 'done' ? ' done' : s === -1 ? ' warn' : '')));
   c.appendChild(top);
-  if (s >= 0) { var bar = el('div', null, 'steps'); for (var i = 0; i < 4; i++) bar.appendChild(el('i', null, i <= s ? 'on' : '')); c.appendChild(bar); }
+  if (s >= 0) { var bar = el('div', null, 'steps'); for (var i = 0; i < 4; i++) bar.appendChild(el('i', null, i <= STAGES[s].dot ? 'on' : '')); c.appendChild(bar); }
   if (f.text) c.appendChild(el('div', f.text, 'flag ' + f.level));
   var g = el('div', null, 'ogrid');
   g.appendChild(info('Arrives', o['Arrival'] + '\n' + o['Clinic']));
@@ -215,14 +227,29 @@ function card(o){
   c.appendChild(g);
   if (s === -1) return c;
   var acts = el('div', null, 'btnrow');
-  var next = s >= 0 ? STAGES[s].next : '';
-  if (s <= 2) btn(acts, s === 0 ? 'Send authorization' : 'Resend authorization', function(){ pick(o, 'auth'); }, next !== 'auth');
-  if (s >= 1 && s <= 2) btn(acts, 'Collected', function(){ collected(o); }, next !== 'collected' || s === 2);
-  if (s >= 1) btn(acts, s === 3 ? 'Resend result' : 'Send result', function(){ sendResult(o); }, next !== 'result');
-  if (s <= 2) btn(acts, 'Cancel', function(){ cancel(o); }, true);
+  // Only the buttons that make sense at this stage; the solid one is the next step.
+  if (key === 'order') btn(acts, 'Send authorization', function(){ pick(o, 'auth'); }, false);
+  if (key === 'test') btn(acts, 'Collected', function(){ collected(o); }, false);
+  if (key === 'result' || key === 'lab') btn(acts, 'Send result', function(){ sendResult(o); }, false);
+  if (key === 'done') btn(acts, 'Resend result', function(){ sendResult(o); }, true);
+  if (key === 'result' && !o.isLab) btn(acts, 'Sent to lab', function(){ sentToLab(o); }, true);
+  if (key === 'test' || key === 'result') btn(acts, 'Resend authorization', function(){ pick(o, 'auth'); }, true);
+  if (key === 'order' || key === 'test') {
+    btn(acts, 'Change time', function(){ var box = c.querySelector('.chg'); box.hidden = !box.hidden; }, true);
+    if (key === 'test' || (o.arrivalMs && Date.now() > o.arrivalMs)) btn(acts, 'No show', function(){ noShow(o); }, true);
+    btn(acts, 'Cancel', function(){ cancel(o); }, true);
+  }
   if (o['Authorization file']) { var l = el('a', 'Authorization file'); l.href = o['Authorization file']; l.target = '_blank'; acts.appendChild(l); }
   if (o['Result file']) { var r = el('a', 'Result file'); r.href = o['Result file']; r.target = '_blank'; acts.appendChild(r); }
   c.appendChild(acts);
+  if (key === 'order' || key === 'test') {
+    var chg = el('div', null, 'chg btnrow'); chg.hidden = true;
+    var inp = document.createElement('input'); inp.type = 'datetime-local'; inp.step = 300; inp.value = o.arrivalIso || '';
+    chg.appendChild(el('span', 'New arrival:', 'hint')); chg.appendChild(inp);
+    btn(chg, 'Save new time', function(){ changeTime(o, inp.value); }, false);
+    chg.appendChild(el('span', 'The candidate and the DSP get the new time by email.', 'hint'));
+    c.appendChild(chg);
+  }
   if (o['Notes']) c.appendChild(el('div', o['Notes'], 'hint notes'));
   return c;
 }
@@ -238,9 +265,27 @@ function collected(o){
   setStatus(o['Order #'], 'Collected');
 }
 function cancel(o){
-  var why = prompt('Cancel ' + o['Candidate'] + ' (' + o['Order #'] + ')? Why? (e.g. no show, DSP cancelled)');
+  var why = prompt('Cancel ' + o['Candidate'] + ' (' + o['Order #'] + ')? Why? (e.g. DSP cancelled)\n\n' +
+    'The DSP and the candidate are emailed.' + (STAGES[stageOf(o)].key === 'test' ? ' Then cancel it in WorkForce too.' : ''));
   if (why === null) return;
-  setStatus(o['Order #'], 'Cancelled', why || 'cancelled');
+  BUSY = true; $('err').textContent = 'Cancelling...';
+  google.script.run.withSuccessHandler(draw).withFailureHandler(fail).deskCancel(KEY, who(), o['Order #'], why || 'cancelled', false);
+}
+function noShow(o){
+  if (!confirm(o['Candidate'] + ' (' + o['Order #'] + ') did not show?\n\nThe order is closed and the DSP is told to reorder when ready. ' +
+    'Cancel it in WorkForce too.')) return;
+  BUSY = true; $('err').textContent = 'Saving...';
+  google.script.run.withSuccessHandler(draw).withFailureHandler(fail).deskCancel(KEY, who(), o['Order #'], 'did not show', true);
+}
+function sentToLab(o){
+  if (!confirm('The rapid for ' + o['Candidate'] + ' (' + o['Order #'] + ') went to the lab for confirmation?\n\n' +
+    'Only the desk sees this - the DSP keeps seeing "result pending".')) return;
+  setStatus(o['Order #'], 'Sent to lab');
+}
+function changeTime(o, v){
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) { $('err').textContent = 'Pick the new date and time.'; return; }
+  BUSY = true; $('err').textContent = 'Saving the new time...';
+  google.script.run.withSuccessHandler(draw).withFailureHandler(fail).deskChangeTime(KEY, who(), o['Order #'], v);
 }
 function sendResult(o){
   if (o.emailApproved) { pick(o, 'result'); return; }
