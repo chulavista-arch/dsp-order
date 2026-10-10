@@ -72,8 +72,13 @@ table.list td, table.list th { border-bottom:1px solid var(--line); padding:8px 
     The earliest arrival you can pick right now is <b id="earliest"></b>.</div>
   <form id="f" autocomplete="on" novalidate>
     <div class="trap" aria-hidden="true"><label>Company website<input name="company_website" tabindex="-1" autocomplete="off"></label></div>
-    <div class="card"><h2>Employer</h2>
-      <label>DSP company</label><input name="dsp" list="dspList" maxlength="120" required>
+    <input type="hidden" name="rtoken" id="rtoken">
+    <div class="card" id="meCard" hidden><h2>Ordering as</h2>
+      <div id="meText"></div>
+      <button type="button" class="ghost small" id="meChange" style="margin-top:8px">Not you? Change</button>
+    </div>
+    <div class="card" id="empCard"><h2>Employer</h2>
+      <label>DSP company <span class="hint">- pick yours or type it</span></label><input name="dsp" list="dspList" maxlength="120" required>
       <datalist id="dspList"></datalist>
       <div class="row">
         <div><label>Your name</label><input name="reqName" autocomplete="name" maxlength="120" required></div>
@@ -109,12 +114,35 @@ table.list td, table.list th { border-bottom:1px solid var(--line); padding:8px 
     <h2>Order placed</h2><div class="num" id="doneNum"></div>
     <p id="doneText"></p>
     <p>The candidate gets the authorization by email before the visit. You get a copy and the result.</p>
+    <p class="hint">Next time this device remembers you, so you only enter the candidate. On another device, use the quick-order link in your confirmation email.</p>
     <button type="button" class="ghost" onclick="location.reload()">Place another order</button>
   </div>
   <div class="card help" id="help" hidden></div>
 </main>
 <script>
 var CFG = null;
+var RTOKEN = "" || (location.search.match(/[?&]r=([0-9a-f]{32})/) || [])[1] || '';
+var ME_FIELDS = ['dsp', 'reqName', 'reqPhone', 'reqEmail'];
+// The orderer's own details live only in their own browser (and behind their own quick link).
+function loadMe(){ try { return JSON.parse(localStorage.getItem('dspOrderMe') || 'null'); } catch(e) { return null; } }
+function saveMe(me){ try { localStorage.setItem('dspOrderMe', JSON.stringify(me)); } catch(e) {} }
+function showMe(me, token){
+  var f = document.getElementById('f');
+  ME_FIELDS.forEach(function(k){ if (me[k]) f.elements[k].value = me[k]; });
+  document.getElementById('rtoken').value = token || '';
+  if (!ME_FIELDS.every(function(k){ return me[k]; })) return;
+  document.getElementById('meText').innerHTML = '';
+  var b = document.createElement('b'); b.textContent = me.reqName; document.getElementById('meText').appendChild(b);
+  document.getElementById('meText').appendChild(document.createTextNode(', ' + me.dsp));
+  var s = document.createElement('div'); s.className = 'hint'; s.textContent = me.reqEmail + ' - ' + me.reqPhone; document.getElementById('meText').appendChild(s);
+  document.getElementById('meCard').hidden = false; document.getElementById('empCard').hidden = true;
+}
+function changeMe(){
+  document.getElementById('meCard').hidden = true; document.getElementById('empCard').hidden = false;
+  document.getElementById('rtoken').value = '';
+  try { localStorage.removeItem('dspOrderMe'); localStorage.removeItem('dspOrderToken'); } catch(e) {}
+}
+function rememberedToken(){ try { return localStorage.getItem('dspOrderToken') || ''; } catch(e) { return ''; } }
 function pad(n){ return (n < 10 ? '0' : '') + n; }
 function localIso(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes()); }
 function earliest(){ var d = new Date(Date.now() + CFG.lead*60000); d.setSeconds(0,0); var m = d.getMinutes(); d.setMinutes(m + (5 - m % 5) % 5); return d; }
@@ -148,7 +176,18 @@ function start(cfg){
   var help = document.getElementById('help'); help.hidden = false; help.innerHTML = '<b>Questions or help</b><br>';
   CFG.help.forEach(function(h){ var p = document.createElement('div'); p.textContent = h[0] + ': '; var a = document.createElement('a'); a.href = 'tel:' + h[1].replace(/\D/g,''); a.textContent = h[1]; p.appendChild(a); help.appendChild(p); });
   document.getElementById('clinic').addEventListener('change', refresh);
+  document.getElementById('meChange').addEventListener('click', changeMe);
   refresh(); setInterval(refresh, 30000);
+  var token = RTOKEN || rememberedToken();
+  var me = loadMe();
+  if (me) showMe(me, token);
+  if (token) {
+    google.script.run.withSuccessHandler(function(r){
+      if (!r) return;
+      try { localStorage.setItem('dspOrderToken', token); } catch(e) {}
+      saveMe(r); showMe(r, token);
+    }).getRequester(token);
+  }
 }
 document.getElementById('f').addEventListener('submit', function(ev){
   ev.preventDefault();
@@ -160,6 +199,7 @@ document.getElementById('f').addEventListener('submit', function(ev){
   var btn = document.getElementById('go'); btn.disabled = true; btn.textContent = 'Placing order...';
   google.script.run
     .withSuccessHandler(function(r){
+      var me = {}; ME_FIELDS.forEach(function(k){ me[k] = fd[k]; }); saveMe(me);
       document.getElementById('formView').hidden = true; document.getElementById('doneView').hidden = false;
       document.getElementById('doneNum').textContent = r.orderNo;
       document.getElementById('doneText').textContent = r.clinic ? ('Candidate arrives at ' + r.clinic + ' ' + r.arrival + '.') : '';
