@@ -49,6 +49,30 @@ table.review { width:100%; border-collapse:collapse; font-size:15px; }
 table.review th { text-align:left; color:var(--muted); font-weight:600; padding:7px 8px 7px 0; vertical-align:top; width:38%; border-bottom:1px solid var(--line); }
 table.review td { padding:7px 0; border-bottom:1px solid var(--line); font-weight:600; word-break:break-word; }
 table.review td.warnline { color:#b45309; font-weight:600; background:#fff8e1; padding:8px; }
+textarea { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; resize:vertical; }
+.chips { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:4px; }
+@media (max-width:560px) { .chips { grid-template-columns:1fr; } }
+.chip { background:#fff; color:var(--ink); border:2px solid var(--line); border-radius:10px; padding:12px 10px; text-align:left; font:inherit; width:100%; }
+.chip:hover { background:#f3f7fc; border-color:var(--blue); }
+.chip b { display:block; font-size:15px; color:var(--blue-d); }
+.chip span { display:block; font-size:13px; color:var(--muted); margin-top:2px; font-weight:400; }
+.chip.on { border-color:var(--green); background:#eef8ec; }
+.chip.on b { color:#2e7d24; }
+.btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.btnrow.center { justify-content:center; }
+.btnrow button { width:auto; }
+.linkbtn { background:none; border:0; color:var(--blue-d); padding:0; width:auto; font:600 14px/1.4 inherit; text-decoration:underline; cursor:pointer; }
+.linkbtn:hover { background:none; color:var(--blue); }
+.candhead { display:flex; justify-content:space-between; align-items:baseline; }
+h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
+.ord { border-bottom:1px solid var(--line); padding:10px 0; }
+.ord:last-child { border-bottom:0; }
+.ord.cancelled { opacity:.6; }
+.ordtop { display:flex; justify-content:space-between; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.badge.done { background:#eef8ec; color:#2e7d24; }
+.steps { display:flex; gap:4px; margin-top:6px; }
+.steps i { flex:1; height:5px; border-radius:3px; background:var(--line); }
+.steps i.on { background:var(--green); }
 </style>
 <script>
 (function () {
