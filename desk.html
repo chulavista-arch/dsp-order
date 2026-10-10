@@ -40,6 +40,15 @@ table.list td, table.list th { border-bottom:1px solid var(--line); padding:8px 
 .badge { display:inline-block; padding:2px 8px; border-radius:6px; background:#e6f0fb; color:var(--blue-d); font-weight:700; font-size:12px; }
 .badge.new { background:#fff3e0; color:#b45309; }
 .badge.warn { background:#fdecea; color:var(--bad); }
+.field.bad input { border-color:var(--bad); outline:1px solid var(--bad); }
+.ferr { color:var(--bad); font-size:13px; font-weight:600; min-height:0; margin-top:4px; }
+.ferr:empty { display:none; }
+.fhint { color:var(--muted); font-size:12px; margin-top:4px; }
+input::placeholder { color:#9aa5b1; }
+table.review { width:100%; border-collapse:collapse; font-size:15px; }
+table.review th { text-align:left; color:var(--muted); font-weight:600; padding:7px 8px 7px 0; vertical-align:top; width:38%; border-bottom:1px solid var(--line); }
+table.review td { padding:7px 0; border-bottom:1px solid var(--line); font-weight:600; word-break:break-word; }
+table.review td.warnline { color:#b45309; font-weight:600; background:#fff8e1; padding:8px; }
 </style>
 <script>
 (function () {

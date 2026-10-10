@@ -39,6 +39,15 @@ table.list td, table.list th { border-bottom:1px solid var(--line); padding:8px 
 .badge { display:inline-block; padding:2px 8px; border-radius:6px; background:#e6f0fb; color:var(--blue-d); font-weight:700; font-size:12px; }
 .badge.new { background:#fff3e0; color:#b45309; }
 .badge.warn { background:#fdecea; color:var(--bad); }
+.field.bad input { border-color:var(--bad); outline:1px solid var(--bad); }
+.ferr { color:var(--bad); font-size:13px; font-weight:600; min-height:0; margin-top:4px; }
+.ferr:empty { display:none; }
+.fhint { color:var(--muted); font-size:12px; margin-top:4px; }
+input::placeholder { color:#9aa5b1; }
+table.review { width:100%; border-collapse:collapse; font-size:15px; }
+table.review th { text-align:left; color:var(--muted); font-weight:600; padding:7px 8px 7px 0; vertical-align:top; width:38%; border-bottom:1px solid var(--line); }
+table.review td { padding:7px 0; border-bottom:1px solid var(--line); font-weight:600; word-break:break-word; }
+table.review td.warnline { color:#b45309; font-weight:600; background:#fff8e1; padding:8px; }
 </style>
 <script>
 (function () {
@@ -78,37 +87,53 @@ table.list td, table.list th { border-bottom:1px solid var(--line); padding:8px 
       <button type="button" class="ghost small" id="meChange" style="margin-top:8px">Not you? Change</button>
     </div>
     <div class="card" id="empCard"><h2>Employer</h2>
-      <label>DSP company <span class="hint">- pick yours or type it</span></label><input name="dsp" list="dspList" maxlength="120" required>
+      <div class="field"><label for="dsp">DSP company <span class="hint">- pick yours or type it</span></label>
+        <input id="dsp" name="dsp" list="dspList" maxlength="120" placeholder="e.g. BLLA Logistics" required><div class="ferr"></div></div>
       <datalist id="dspList"></datalist>
       <div class="row">
-        <div><label>Your name</label><input name="reqName" autocomplete="name" maxlength="120" required></div>
-        <div><label>Your phone</label><input name="reqPhone" type="tel" autocomplete="tel" required></div>
+        <div class="field"><label for="reqName">Your name</label>
+          <input id="reqName" name="reqName" autocomplete="name" maxlength="80" placeholder="First and last name" data-kind="name" required><div class="ferr"></div></div>
+        <div class="field"><label for="reqPhone">Your phone</label>
+          <input id="reqPhone" name="reqPhone" type="tel" inputmode="tel" autocomplete="tel" maxlength="14" placeholder="(619) 555-0123" data-kind="phone" required><div class="ferr"></div></div>
       </div>
-      <label>Your email <span class="hint">- the order confirmation and results go here</span></label>
-      <input name="reqEmail" type="email" autocomplete="email" required>
+      <div class="field"><label for="reqEmail">Your email <span class="hint">- the order confirmation and results go here</span></label>
+        <input id="reqEmail" name="reqEmail" type="email" inputmode="email" autocomplete="email" maxlength="120" placeholder="you@yourdsp.com" data-kind="email" required><div class="ferr"></div></div>
     </div>
     <div class="card"><h2>Candidate</h2>
-      <label>Full legal name <span class="hint">- first and last, as on the photo ID</span></label>
-      <input name="candName" autocomplete="off" maxlength="120" required>
+      <div class="field"><label for="candName">Full legal name <span class="hint">- first and last, exactly as on the photo ID</span></label>
+        <input id="candName" name="candName" autocomplete="off" maxlength="80" placeholder="e.g. Maria Lopez" data-kind="name" required><div class="ferr"></div></div>
       <div class="row">
-        <div><label>Date of birth</label><input name="dob" type="date" required></div>
-        <div><label>Phone</label><input name="candPhone" type="tel" autocomplete="off" required></div>
+        <div class="field"><label for="dob">Date of birth</label>
+          <input id="dob" name="dob" type="date" data-kind="dob" required><div class="ferr"></div></div>
+        <div class="field"><label for="candPhone">Phone</label>
+          <input id="candPhone" name="candPhone" type="tel" inputmode="tel" autocomplete="off" maxlength="14" placeholder="(619) 555-0123" data-kind="phone" required><div class="ferr"></div></div>
       </div>
-      <label>Email <span class="hint">- the authorization is emailed here</span></label>
-      <input name="candEmail" type="email" autocomplete="off" required>
-      <label>Amazon Drug Test ID <span class="hint">- goes on the custody form as the Employee ID; copy it exactly</span></label>
-      <input name="amazonId" autocomplete="off" maxlength="120" required>
+      <div class="field"><label for="candEmail">Email <span class="hint">- the authorization is emailed here</span></label>
+        <input id="candEmail" name="candEmail" type="email" inputmode="email" autocomplete="off" maxlength="120" placeholder="candidate@email.com" data-kind="email" required><div class="ferr"></div></div>
+      <div class="field"><label for="amazonId">Amazon Drug Test ID <span class="hint">- goes on the custody form as the Employee ID</span></label>
+        <input id="amazonId" name="amazonId" autocomplete="off" maxlength="60" placeholder="Exactly as it appears on Amazon's request" data-kind="id" required>
+        <div class="fhint">Copy it from the candidate's Amazon drug test request. Letters, numbers and dashes only - no spaces.</div><div class="ferr"></div></div>
     </div>
     <div class="card"><h2>Test and time</h2>
-      <label>Test</label><select name="test" id="test"></select>
-      <label>Clinic</label><select name="clinic" id="clinic"></select>
+      <label for="test">Test</label><select name="test" id="test"></select>
+      <label for="clinic">Clinic</label><select name="clinic" id="clinic"></select>
       <div class="clinic" id="clinicInfo"></div>
-      <label>Candidate arrives at the clinic</label>
-      <input name="arrival" id="arrival" type="datetime-local" step="300" required>
+      <div class="field"><label for="arrival">Candidate arrives at the clinic</label>
+        <input name="arrival" id="arrival" type="datetime-local" step="300" data-kind="arrival" required><div class="ferr"></div></div>
     </div>
-    <button id="go" type="submit">Place order</button>
+    <button id="go" type="submit">Review order</button>
     <div class="err" id="err"></div>
   </form>
+  </div>
+  <div id="reviewView" class="card" hidden>
+    <h2>Check before you send</h2>
+    <p class="hint">The name, date of birth and Amazon ID go on the drug test form exactly as shown. Fix anything that's wrong.</p>
+    <table class="review" id="reviewTable"></table>
+    <div class="row" style="margin-top:14px">
+      <button type="button" class="ghost" id="editBtn">Edit</button>
+      <button type="button" id="sendBtn">Confirm and send</button>
+    </div>
+    <div class="err" id="sendErr"></div>
   </div>
   <div id="doneView" class="card ok" hidden>
     <h2>Order placed</h2><div class="num" id="doneNum"></div>
@@ -123,26 +148,82 @@ table.list td, table.list th { border-bottom:1px solid var(--line); padding:8px 
 var CFG = null;
 var RTOKEN = "" || (location.search.match(/[?&]r=([0-9a-f]{32})/) || [])[1] || '';
 var ME_FIELDS = ['dsp', 'reqName', 'reqPhone', 'reqEmail'];
-// The orderer's own details live only in their own browser (and behind their own quick link).
+var F = document.getElementById('f');
+var PENDING = null; var SENDING = false;
+
+// ---- remembered orderer (only in their own browser, or behind their own quick link)
 function loadMe(){ try { return JSON.parse(localStorage.getItem('dspOrderMe') || 'null'); } catch(e) { return null; } }
 function saveMe(me){ try { localStorage.setItem('dspOrderMe', JSON.stringify(me)); } catch(e) {} }
 function showMe(me, token){
-  var f = document.getElementById('f');
-  ME_FIELDS.forEach(function(k){ if (me[k]) f.elements[k].value = me[k]; });
+  ME_FIELDS.forEach(function(k){ if (me[k]) F.elements[k].value = me[k]; });
   document.getElementById('rtoken').value = token || '';
-  if (!ME_FIELDS.every(function(k){ return me[k]; })) return;
-  document.getElementById('meText').innerHTML = '';
-  var b = document.createElement('b'); b.textContent = me.reqName; document.getElementById('meText').appendChild(b);
-  document.getElementById('meText').appendChild(document.createTextNode(', ' + me.dsp));
-  var s = document.createElement('div'); s.className = 'hint'; s.textContent = me.reqEmail + ' - ' + me.reqPhone; document.getElementById('meText').appendChild(s);
+  if (!ME_FIELDS.every(function(k){ return me[k] && !fieldError(F.elements[k]); })) { openEmployer(); return; }
+  var t = document.getElementById('meText'); t.innerHTML = '';
+  var b = document.createElement('b'); b.textContent = me.reqName; t.appendChild(b);
+  t.appendChild(document.createTextNode(', ' + me.dsp));
+  var s = document.createElement('div'); s.className = 'hint'; s.textContent = me.reqEmail + ' - ' + me.reqPhone; t.appendChild(s);
   document.getElementById('meCard').hidden = false; document.getElementById('empCard').hidden = true;
 }
+function openEmployer(){ document.getElementById('meCard').hidden = true; document.getElementById('empCard').hidden = false; }
 function changeMe(){
-  document.getElementById('meCard').hidden = true; document.getElementById('empCard').hidden = false;
-  document.getElementById('rtoken').value = '';
+  openEmployer(); document.getElementById('rtoken').value = '';
+  ME_FIELDS.forEach(function(k){ F.elements[k].value = ''; });
   try { localStorage.removeItem('dspOrderMe'); localStorage.removeItem('dspOrderToken'); } catch(e) {}
+  F.elements.dsp.focus();
 }
 function rememberedToken(){ try { return localStorage.getItem('dspOrderToken') || ''; } catch(e) { return ''; } }
+
+// ---- formatting as people type
+function digits(s){ var d = String(s).replace(/\D/g, ''); return d.length === 11 && d[0] === '1' ? d.slice(1) : d.slice(0, 10); }
+function fmtPhone(s){ var d = digits(s); if (!d) return '';
+  if (d.length < 4) return '(' + d; if (d.length < 7) return '(' + d.slice(0,3) + ') ' + d.slice(3);
+  return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6); }
+function titleCase(s){ s = String(s).replace(/\s+/g, ' ').trim();
+  if (s !== s.toLowerCase() && s !== s.toUpperCase()) return s; // they typed mixed case on purpose
+  return s.toLowerCase().replace(/(^|[\s\-'])([a-z])/g, function(m, a, b){ return a + b.toUpperCase(); }); }
+var TYPO = { 'gmial.com':'gmail.com','gmai.com':'gmail.com','gmal.com':'gmail.com','gmail.co':'gmail.com','gmail.con':'gmail.com','gnail.com':'gmail.com',
+  'yaho.com':'yahoo.com','yahoo.con':'yahoo.com','yhoo.com':'yahoo.com','hotmial.com':'hotmail.com','hotmai.com':'hotmail.com','hotmail.con':'hotmail.com',
+  'outlok.com':'outlook.com','outlook.con':'outlook.com','icloud.con':'icloud.com','iclod.com':'icloud.com' };
+
+// ---- one rule per kind of field; returns the problem in plain words, or ''
+function fieldError(el){
+  var v = String(el.value || '').trim(); var k = el.getAttribute('data-kind');
+  if (el.required && !v) return 'Required.';
+  if (k === 'phone') { var d = digits(v); if (d.length !== 10) return 'Enter a 10-digit phone number, like (619) 555-0123.';
+    if (/^[01]/.test(d) || /^(\d)\1{9}$/.test(d)) return 'That phone number does not look real.'; }
+  if (k === 'email') { if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v)) return 'Enter a full email, like name@company.com.';
+    var dom = v.split('@')[1].toLowerCase(); if (TYPO[dom]) return 'Did you mean ' + v.split('@')[0] + '@' + TYPO[dom] + '?'; }
+  if (k === 'name') { if (!/[a-z]/i.test(v) || v.split(/\s+/).length < 2) return 'First and last name.';
+    if (/[0-9@#$%^*_=+<>{}\[\]|\\\/]/.test(v)) return 'Letters only, please.'; }
+  if (k === 'dob') { var b = new Date(v + 'T00:00'); var age = (Date.now() - b.getTime()) / 31557600000;
+    if (isNaN(age) || age < 16 || age > 90) return 'Check the date of birth - the candidate must be 16 to 90.'; }
+  if (k === 'id') { if (!/^[A-Za-z0-9-]{3,60}$/.test(v)) return 'Letters, numbers and dashes only, no spaces.'; }
+  if (k === 'arrival') return arrivalError(v);
+  return '';
+}
+function arrivalError(v){
+  var c = clinicNow(); if (!c) return 'No clinic is open for orders right now. Please call us.';
+  if (!v) return 'Pick when the candidate arrives.';
+  var d = new Date(v);
+  if (d.getTime() < earliest().getTime() - 60000) return 'Must be at least ' + CFG.lead + ' minutes from now. Earliest: ' + document.getElementById('earliest').textContent + '.';
+  if (d.getTime() > Date.now() + 60 * 86400000) return 'Pick a date within the next 60 days.';
+  var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (c.days.indexOf(d.getDay()) < 0 || hm < c.first || hm > c.last) return c.name + ' takes ' + hours(c) + '.';
+  return '';
+}
+function show(el, problem){
+  var box = el.closest('.field'); if (!box) return;
+  box.classList.toggle('bad', !!problem); box.querySelector('.ferr').textContent = problem || '';
+}
+function tidy(el){
+  var k = el.getAttribute('data-kind');
+  if (k === 'phone') el.value = fmtPhone(el.value);
+  if (k === 'name') el.value = titleCase(el.value);
+  if (k === 'email') el.value = el.value.trim().toLowerCase();
+  if (k === 'id' || el.name === 'dsp') el.value = el.value.trim().replace(/\s+/g, k === 'id' ? '' : ' ');
+}
+
+// ---- clinic hours + earliest time
 function pad(n){ return (n < 10 ? '0' : '') + n; }
 function localIso(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes()); }
 function earliest(){ var d = new Date(Date.now() + CFG.lead*60000); d.setSeconds(0,0); var m = d.getMinutes(); d.setMinutes(m + (5 - m % 5) % 5); return d; }
@@ -155,17 +236,8 @@ function refresh(){
   document.getElementById('earliest').textContent = e.toLocaleString([], {weekday:'short', hour:'numeric', minute:'2-digit'});
   var c = clinicNow(); document.getElementById('clinicInfo').textContent = c ? (c.address + ' - ' + c.phone + ' - ' + hours(c)) : '';
 }
-function check(fd){
-  var c = clinicNow(); var v = fd.arrival;
-  if (!c) return 'No clinic is open for orders right now. Please call us.';
-  if (!v) return 'Pick when the candidate arrives.';
-  var d = new Date(v);
-  if (d.getTime() < earliest().getTime() - 60000) return 'Orders must come in at least ' + CFG.lead + ' minutes before the candidate arrives. Earliest right now: ' + document.getElementById('earliest').textContent + '.';
-  var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
-  if (c.days.indexOf(d.getDay()) < 0 || hm < c.first || hm > c.last) return c.name + ' takes ' + hours(c) + '.';
-  return '';
-}
 function msg(e){ return (e && e.message || String(e)).replace(/^Error:\s*/, ''); }
+
 function start(cfg){
   CFG = cfg;
   document.getElementById('loading').hidden = true; document.getElementById('formView').hidden = false;
@@ -175,8 +247,13 @@ function start(cfg){
   CFG.clinics.forEach(function(c){ var o = document.createElement('option'); o.textContent = c.name; document.getElementById('clinic').appendChild(o); });
   var help = document.getElementById('help'); help.hidden = false; help.innerHTML = '<b>Questions or help</b><br>';
   CFG.help.forEach(function(h){ var p = document.createElement('div'); p.textContent = h[0] + ': '; var a = document.createElement('a'); a.href = 'tel:' + h[1].replace(/\D/g,''); a.textContent = h[1]; p.appendChild(a); help.appendChild(p); });
-  document.getElementById('clinic').addEventListener('change', refresh);
+  document.getElementById('clinic').addEventListener('change', function(){ refresh(); show(F.elements.arrival, F.elements.arrival.value ? fieldError(F.elements.arrival) : ''); });
   document.getElementById('meChange').addEventListener('click', changeMe);
+  [].slice.call(F.querySelectorAll('input[data-kind], input[name=dsp]')).forEach(function(el){
+    if (el.getAttribute('data-kind') === 'phone') el.addEventListener('input', function(){ var end = el.selectionStart === el.value.length; el.value = fmtPhone(el.value); if (end) el.selectionStart = el.selectionEnd = el.value.length; });
+    el.addEventListener('blur', function(){ if (!el.value) return; tidy(el); show(el, fieldError(el)); });
+    el.addEventListener('input', function(){ if (el.closest('.field') && el.closest('.field').classList.contains('bad')) show(el, fieldError(el)); });
+  });
   refresh(); setInterval(refresh, 30000);
   var token = RTOKEN || rememberedToken();
   var me = loadMe();
@@ -189,25 +266,63 @@ function start(cfg){
     }).getRequester(token);
   }
 }
-document.getElementById('f').addEventListener('submit', function(ev){
+
+// ---- step 1: check everything, then show a review
+F.addEventListener('submit', function(ev){
   ev.preventDefault();
   var err = document.getElementById('err'); err.textContent = '';
-  var fd = {}; new FormData(this).forEach(function(v, k){ fd[k] = v; });
-  var missing = [].slice.call(this.querySelectorAll('[required]')).filter(function(i){ return !i.value.trim(); });
-  if (missing.length) { err.textContent = 'Please fill in every field.'; missing[0].focus(); return; }
-  var bad = check(fd); if (bad) { err.textContent = bad; return; }
-  var btn = document.getElementById('go'); btn.disabled = true; btn.textContent = 'Placing order...';
+  var first = null;
+  [].slice.call(F.querySelectorAll('input[required], input[data-kind]')).forEach(function(el){
+    tidy(el); var p = fieldError(el); show(el, p);
+    if (p && !first) first = el;
+  });
+  if (first) {
+    if (ME_FIELDS.indexOf(first.name) >= 0) openEmployer();
+    err.textContent = 'Please fix the field marked in red.';
+    first.focus(); first.scrollIntoView({ block: 'center' }); return;
+  }
+  var fd = {}; new FormData(F).forEach(function(v, k){ fd[k] = v; });
+  PENDING = fd;
+  var dob = fd.dob.split('-'); var when = new Date(fd.arrival);
+  var rows = [['DSP', fd.dsp], ['Ordered by', fd.reqName + ' - ' + fd.reqPhone + ' - ' + fd.reqEmail],
+    ['Candidate', fd.candName], ['Date of birth', dob[1] + '/' + dob[2] + '/' + dob[0]], ['Candidate phone', fd.candPhone],
+    ['Candidate email', fd.candEmail], ['Amazon Drug Test ID', fd.amazonId], ['Test', fd.test],
+    ['Clinic', fd.clinic], ['Arrives', when.toLocaleString([], { weekday:'long', month:'long', day:'numeric', hour:'numeric', minute:'2-digit' })]];
+  var t = document.getElementById('reviewTable'); t.innerHTML = '';
+  rows.forEach(function(r){ var tr = document.createElement('tr'); var a = document.createElement('th'); a.textContent = r[0]; var b = document.createElement('td'); b.textContent = r[1]; tr.appendChild(a); tr.appendChild(b); t.appendChild(tr); });
+  if (fd.candEmail === fd.reqEmail) { var tr = document.createElement('tr'); var td = document.createElement('td'); td.colSpan = 2; td.className = 'warnline';
+    td.textContent = 'The candidate email is the same as yours. The authorization will go to you - make sure the candidate gets it.'; tr.appendChild(td); t.appendChild(tr); }
+  document.getElementById('formView').hidden = true; document.getElementById('reviewView').hidden = false;
+  document.getElementById('sendErr').textContent = '';
+  window.scrollTo(0, 0);
+});
+document.getElementById('editBtn').addEventListener('click', function(){
+  document.getElementById('reviewView').hidden = true; document.getElementById('formView').hidden = false;
+});
+
+// ---- step 2: send once
+document.getElementById('sendBtn').addEventListener('click', function(){
+  if (SENDING || !PENDING) return;
+  var bad = arrivalError(PENDING.arrival);
+  if (bad) { document.getElementById('sendErr').textContent = bad + ' Press Edit to change the time.'; return; }
+  SENDING = true;
+  var btn = this; btn.disabled = true; btn.textContent = 'Sending...'; document.getElementById('editBtn').disabled = true;
+  var fd = PENDING;
   google.script.run
     .withSuccessHandler(function(r){
       var me = {}; ME_FIELDS.forEach(function(k){ me[k] = fd[k]; }); saveMe(me);
-      document.getElementById('formView').hidden = true; document.getElementById('doneView').hidden = false;
+      document.getElementById('reviewView').hidden = true; document.getElementById('doneView').hidden = false;
       document.getElementById('doneNum').textContent = r.orderNo;
       document.getElementById('doneText').textContent = r.clinic ? ('Candidate arrives at ' + r.clinic + ' ' + r.arrival + '.') : '';
       window.scrollTo(0, 0);
     })
-    .withFailureHandler(function(e){ btn.disabled = false; btn.textContent = 'Place order'; err.textContent = msg(e); })
+    .withFailureHandler(function(e){
+      SENDING = false; btn.disabled = false; btn.textContent = 'Confirm and send'; document.getElementById('editBtn').disabled = false;
+      document.getElementById('sendErr').textContent = msg(e);
+    })
     .submitOrder(fd);
 });
+
 google.script.run.withSuccessHandler(start)
   .withFailureHandler(function(e){ document.getElementById('loading').textContent = 'Could not load the order form. Please refresh, or call (619) 500-5954. ' + msg(e); })
   .getPageConfig();
