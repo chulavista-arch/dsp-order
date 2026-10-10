@@ -111,8 +111,8 @@ table.review td.warnline { color:#b45309; font-weight:600; background:#fff8e1; p
       <div class="field"><label for="candEmail">Email <span class="hint">- the authorization is emailed here</span></label>
         <input id="candEmail" name="candEmail" type="email" inputmode="email" autocomplete="off" maxlength="120" placeholder="candidate@email.com" data-kind="email" required><div class="ferr"></div></div>
       <div class="field"><label for="amazonId">Amazon Drug Test ID <span class="hint">- goes on the custody form as the Employee ID</span></label>
-        <input id="amazonId" name="amazonId" autocomplete="off" maxlength="60" placeholder="Exactly as it appears on Amazon's request" data-kind="id" required>
-        <div class="fhint">Copy it from the candidate's Amazon drug test request. Letters, numbers and dashes only - no spaces.</div><div class="ferr"></div></div>
+        <input id="amazonId" name="amazonId" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="e.g. KX7RT2MQ9DB4WLE" data-kind="id" required>
+        <div class="fhint">On the candidate's Amazon request it's labeled <b>DRUG TEST ID</b> - 15 letters and numbers. Copy it exactly.</div><div class="ferr"></div></div>
     </div>
     <div class="card"><h2>Test and time</h2>
       <label for="test">Test</label><select name="test" id="test"></select>
@@ -197,7 +197,9 @@ function fieldError(el){
     if (/[0-9@#$%^*_=+<>{}\[\]|\\\/]/.test(v)) return 'Letters only, please.'; }
   if (k === 'dob') { var b = new Date(v + 'T00:00'); var age = (Date.now() - b.getTime()) / 31557600000;
     if (isNaN(age) || age < 16 || age > 90) return 'Check the date of birth - the candidate must be 16 to 90.'; }
-  if (k === 'id') { if (!/^[A-Za-z0-9-]{3,60}$/.test(v)) return 'Letters, numbers and dashes only, no spaces.'; }
+  if (k === 'id') { var id = cleanId(v);
+    if (/[^A-Za-z0-9\s-]/.test(v)) return 'Letters and numbers only.';
+    if (id.length < 12 || id.length > 20) return 'The Drug Test ID is 15 letters and numbers - this one has ' + id.length + '. Check it.'; }
   if (k === 'arrival') return arrivalError(v);
   return '';
 }
@@ -220,8 +222,11 @@ function tidy(el){
   if (k === 'phone') el.value = fmtPhone(el.value);
   if (k === 'name') el.value = titleCase(el.value);
   if (k === 'email') el.value = el.value.trim().toLowerCase();
-  if (k === 'id' || el.name === 'dsp') el.value = el.value.trim().replace(/\s+/g, k === 'id' ? '' : ' ');
+  if (k === 'id') el.value = cleanId(el.value);
+  if (el.name === 'dsp') el.value = el.value.trim().replace(/\s+/g, ' ');
 }
+// Amazon's DRUG TEST ID: capitals and digits, no spaces or dashes (people paste it with spaces).
+function cleanId(s){ return String(s).replace(/[\s-]/g, '').toUpperCase(); }
 
 // ---- clinic hours + earliest time
 function pad(n){ return (n < 10 ? '0' : '') + n; }
@@ -290,6 +295,8 @@ F.addEventListener('submit', function(ev){
     ['Clinic', fd.clinic], ['Arrives', when.toLocaleString([], { weekday:'long', month:'long', day:'numeric', hour:'numeric', minute:'2-digit' })]];
   var t = document.getElementById('reviewTable'); t.innerHTML = '';
   rows.forEach(function(r){ var tr = document.createElement('tr'); var a = document.createElement('th'); a.textContent = r[0]; var b = document.createElement('td'); b.textContent = r[1]; tr.appendChild(a); tr.appendChild(b); t.appendChild(tr); });
+  if (fd.amazonId.length !== 15) { var tr0 = document.createElement('tr'); var td0 = document.createElement('td'); td0.colSpan = 2; td0.className = 'warnline';
+    td0.textContent = 'Drug Test IDs are usually 15 characters - this one has ' + fd.amazonId.length + '. Double-check it against the Amazon request.'; tr0.appendChild(td0); t.appendChild(tr0); }
   if (fd.candEmail === fd.reqEmail) { var tr = document.createElement('tr'); var td = document.createElement('td'); td.colSpan = 2; td.className = 'warnline';
     td.textContent = 'The candidate email is the same as yours. The authorization will go to you - make sure the candidate gets it.'; tr.appendChild(td); t.appendChild(tr); }
   document.getElementById('formView').hidden = true; document.getElementById('reviewView').hidden = false;
