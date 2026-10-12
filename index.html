@@ -126,7 +126,7 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
 
   <!-- ===== order form ===== -->
   <div id="formView" hidden>
-  <div class="rule"><b>Order at least <span id="leadA"></span> minutes before the candidate arrives.</b>
+  <div class="rule" id="orderRule"><b>Order at least <span id="leadA"></span> minutes before the candidate arrives.</b>
     The earliest arrival right now is <b id="earliest"></b>.</div>
   <form id="f" autocomplete="on" novalidate>
     <div class="trap" aria-hidden="true"><label>Company website<input name="company_website" tabindex="-1" autocomplete="off"></label></div>
@@ -375,10 +375,12 @@ function wallNow(){ return wall(Date.now()); }
 function ymd(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 function hm(d){ return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function candCount(){ return Math.max(1, F.querySelectorAll('.cand').length); }
+function directClinic(){ var c = clinicNow(); return c && c.fulfillment === 'DIRECT_AUTHORIZATION'; }
 // The order must leave the desk LEAD minutes, plus a few per candidate already waiting, inside one stretch
 // of desk hours; if today can't fit it, it starts at the next opening.
 function earliest(){
   var now = wallNow(); now.setSeconds(0, 0);
+  if (directClinic()) { now.setMinutes(now.getMinutes() + 5); var dm = now.getMinutes(); now.setMinutes(dm + (5 - dm % 5) % 5); return now; }
   var dk = CFG.desk || { days: [1,2,3,4,5], open: '08:00', close: '17:30', closed: [] };
   var need = (CFG.lead + (CFG.queueMin || 0) * Math.max(0, (CFG.queued || 0) + candCount() - 1)) * 60000;
   var day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -443,7 +445,9 @@ function arrivalError(v){
   if (!WHEN) return 'Choose when the candidate arrives.';
   if (!v) return 'Pick the date and time.';
   var d = new Date(v);
-  if (d.getTime() < earliest().getTime() - 60000) return 'We need ' + CFG.lead + ' minutes while our desk is open to place it. Earliest: ' + $('earliest').textContent + '.';
+  if (d.getTime() < earliest().getTime() - 60000) return directClinic()
+    ? 'Pick a time at least 5 minutes from now. Earliest: ' + $('earliest').textContent + '.'
+    : 'We need ' + CFG.lead + ' minutes while our desk is open to place it. Earliest: ' + $('earliest').textContent + '.';
   if (d.getTime() > wallNow().getTime() + 60 * 86400000) return 'Pick a date within the next 60 days.';
   if ((c.closed || []).indexOf(ymd(d)) >= 0) return c.name + ' is closed that day. Pick another day.';
   if (!openAt(c, d)) return c.name + ' takes ' + hours(c) + '.';
@@ -453,6 +457,16 @@ function refresh(){
   var e = earliest(); $('arrival').min = localIso(e);
   $('earliest').textContent = e.toLocaleString([], {weekday:'short', hour:'numeric', minute:'2-digit'});
   var c = clinicNow(); $('clinicInfo').textContent = c ? (c.address + ' - ' + c.phone + ' - ' + hours(c)) : '';
+  if (c && c.fulfillment === 'DIRECT_AUTHORIZATION') {
+    $('orderRule').innerHTML = '<b>The authorization is created and emailed as soon as you submit.</b> No WorkForce order is needed. Earliest arrival: <b id="earliest">' +
+      e.toLocaleString([], {weekday:'short', hour:'numeric', minute:'2-digit'}) + '</b>.';
+    if (c.directTest) $('test').value = c.directTest;
+    $('test').disabled = true;
+  } else {
+    $('orderRule').innerHTML = '<b>Order at least <span id="leadA">' + CFG.lead + '</span> minutes before the candidate arrives.</b> The earliest arrival right now is <b id="earliest">' +
+      e.toLocaleString([], {weekday:'short', hour:'numeric', minute:'2-digit'}) + '</b>.';
+    $('test').disabled = false;
+  }
   chipsRender();
 }
 
@@ -516,6 +530,8 @@ F.addEventListener('submit', function(ev){
     var target = first || $('chips'); target.scrollIntoView({ block: 'center' }); if (first) first.focus(); return;
   }
   var fd = {}; new FormData(F).forEach(function(v, k){ fd[k] = v; });
+  // Disabled direct-clinic test selects are intentionally fixed, so FormData omits them.
+  fd.test = $('test').value;
   fd.arrival = arr; fd.candidates = readCandidates();
   var ids = {}; var dupe = '';
   fd.candidates.forEach(function(c, i){ if (ids[c.amazonId]) dupe = 'Candidates ' + ids[c.amazonId] + ' and ' + (i + 1) + ' have the same Drug Test ID.'; ids[c.amazonId] = i + 1; });
