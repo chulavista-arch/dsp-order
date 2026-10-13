@@ -400,6 +400,15 @@ function earliest(){
 function t12(hhmm){ var p = hhmm.split(':'); var h = +p[0]; var ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + p[1] + ' ' + ap; }
 function hours(c){ var n=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var d = c.days.join(',')==='1,2,3,4,5' ? 'Mon-Fri' : c.days.map(function(x){return n[x];}).join(', '); return d + ', arrivals ' + t12(c.first) + ' to ' + t12(c.last); }
 function clinicNow(){ return CFG.clinics.filter(function(c){ return c.name === $('clinic').value; })[0]; }
+function canonDspClient(s){ return String(s || '').toLowerCase().replace(/&/g,' and ').replace(/[.,'\-\/]/g,'').replace(/\s+/g,' ').replace(/\s+(llc|inc|corp|corporation|co|ltd|lp)$/,'').trim(); }
+function renderClinics(){
+  var route = (CFG.dspRoutes || {})[canonDspClient($('dsp').value)] || {allowed:[], defaultClinic:''};
+  var allowed = route.allowed && route.allowed.length ? route.allowed : CFG.clinics.map(function(c){return c.name;});
+  var old = $('clinic').value; $('clinic').innerHTML = '';
+  CFG.clinics.filter(function(c){return allowed.indexOf(c.name) >= 0;}).forEach(function(c){ var o=document.createElement('option'); o.textContent=c.name; $('clinic').appendChild(o); });
+  if (allowed.indexOf(old) >= 0) $('clinic').value = old;
+  else if (route.defaultClinic && allowed.indexOf(route.defaultClinic) >= 0) $('clinic').value = route.defaultClinic;
+}
 function openAt(c, d){ var t = hm(d); return c.days.indexOf(d.getDay()) >= 0 && t >= c.first && t <= c.last && (c.closed || []).indexOf(ymd(d)) < 0; }
 // First arrival time at or after `from` that the clinic accepts (5-minute steps, up to 14 days ahead).
 function nextOpen(c, from){
@@ -482,12 +491,13 @@ function start(cfg){
   CFG.tests.forEach(function(n){ var o = document.createElement('option'); o.textContent = n; $('test').appendChild(o); });
   try { var lastTest = localStorage.getItem('dspOrderTest'); if (CFG.tests.indexOf(lastTest) >= 0) $('test').value = lastTest; } catch(e) {}
   $('test').addEventListener('change', function(){ $('testErr').textContent = ''; try { localStorage.setItem('dspOrderTest', $('test').value); } catch(e) {} });
-  CFG.clinics.forEach(function(c){ var o = document.createElement('option'); o.textContent = c.name; $('clinic').appendChild(o); });
+  renderClinics();
   var help = $('help'); help.hidden = false; help.innerHTML = '<b>Questions or help</b><br>';
   CFG.help.forEach(function(h){ var p = document.createElement('div'); p.textContent = h[0] + ': '; var a = document.createElement('a'); a.href = 'tel:' + h[1].replace(/\D/g,''); a.textContent = h[1]; p.appendChild(a); help.appendChild(p); });
   var pb = document.createElement('button'); pb.type = 'button'; pb.className = 'linkbtn'; pb.textContent = 'Problem with this page? Tell us';
   pb.addEventListener('click', openProblem); var pd = document.createElement('div'); pd.style.marginTop = '8px'; pd.appendChild(pb); help.appendChild(pd);
   $('clinic').addEventListener('change', function(){ WHEN = null; $('pickBox').hidden = true; refresh(); });
+  $('dsp').addEventListener('input', function(){ WHEN = null; $('pickBox').hidden = true; renderClinics(); refresh(); });
   $('meChange').addEventListener('click', changeMe);
   $('meOrders').addEventListener('click', showOrders);
   $('doneOrders').addEventListener('click', showOrders);
