@@ -139,9 +139,10 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
       </div>
     </div>
     <div class="card" id="empCard"><h2>Employer</h2>
-      <div class="field"><label for="dsp">DSP company <span class="hint">- pick yours or type it</span></label>
-        <input id="dsp" name="dsp" list="dspList" maxlength="120" placeholder="e.g. BLLA Logistics" required><div class="ferr"></div></div>
-      <datalist id="dspList"></datalist>
+      <div class="field"><label for="dsp">DSP company <span class="hint">- as your company is set up with us</span></label>
+        <input id="dsp" name="dsp" maxlength="120" placeholder="Your company name" autocomplete="organization" required><div class="ferr"></div>
+        <div id="stationBox" class="hint" hidden style="margin-top:6px"></div>
+        <div id="routeMsg" class="hint" hidden style="margin-top:6px"></div></div>
       <div class="row">
         <div class="field"><label for="reqName">Your name</label>
           <input id="reqName" name="reqName" autocomplete="name" maxlength="80" placeholder="First and last name" data-kind="name" required><div class="ferr"></div></div>
@@ -175,6 +176,9 @@ h3.revh { font-size:15px; color:var(--blue-d); margin:16px 0 4px; }
     <h2>Check before you send</h2>
     <p class="hint">Names, dates of birth and Drug Test IDs go on the drug test form exactly as shown. Fix anything that's wrong.</p>
     <div id="reviewBody"></div>
+    <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-weight:600;cursor:pointer">
+      <input type="checkbox" id="consent" style="width:22px;height:22px;flex:none;margin-top:1px">
+      <span id="consentText">The candidate agreed to this drug test as part of hiring, and to the result going to our company.</span></label>
     <div class="row" style="margin-top:14px">
       <button type="button" class="ghost" id="editBtn">Edit</button>
       <button type="button" id="sendBtn">Confirm and send</button>
@@ -258,6 +262,7 @@ function loadMe(){ try { return JSON.parse(localStorage.getItem('dspOrderMe') ||
 function saveMe(me){ try { localStorage.setItem('dspOrderMe', JSON.stringify(me)); } catch(e) {} }
 function showMe(me){
   ME_FIELDS.forEach(function(k){ if (me[k]) F.elements[k].value = me[k]; });
+  if (me.dsp) fetchRoute();
   $('rtoken').value = TOKEN || '';
   $('meOrders').hidden = !TOKEN;
   if (!ME_FIELDS.every(function(k){ return me[k] && !fieldError(F.elements[k]); })) { openEmployer(); return; }
@@ -400,10 +405,37 @@ function earliest(){
 function t12(hhmm){ var p = hhmm.split(':'); var h = +p[0]; var ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + p[1] + ' ' + ap; }
 function hours(c){ var n=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var d = c.days.join(',')==='1,2,3,4,5' ? 'Mon-Fri' : c.days.map(function(x){return n[x];}).join(', '); return d + ', arrivals ' + t12(c.first) + ' to ' + t12(c.last); }
 function clinicNow(){ return CFG.clinics.filter(function(c){ return c.name === $('clinic').value; })[0]; }
-function canonDspClient(s){ return String(s || '').toLowerCase().replace(/&/g,' and ').replace(/[.,'\-\/]/g,'').replace(/\s+/g,' ').replace(/\s+(llc|inc|corp|corporation|co|ltd|lp)$/,'').trim(); }
+function canonDspClient(s){ return String(s || '').toLowerCase().replace(/&/g,' and ').replace(/[()[\]]/g,' ').replace(/[.,'\-\/]/g,'').replace(/\s+/g,' ').trim().replace(/\s+(llc|inc|corp|corporation|co|ltd|lp)$/,'').trim(); }
+// The clinics a DSP may use come from the server for the name typed - the page never holds the customer list.
+var ROUTES = {}; var ROUTE_TIMER = null;
+function fetchRoute(){ var name = $('dsp').value.trim(); var k = canonDspClient(name);
+  if (!k || ROUTES[k]) { if (CFG) renderClinics(); return; }
+  clearTimeout(ROUTE_TIMER);
+  ROUTE_TIMER = setTimeout(function(){
+    google.script.run.withSuccessHandler(function(r){ ROUTES[k] = r || {allowed:[], defaultClinic:''};
+      if (CFG && canonDspClient($('dsp').value) === k) { renderStations(); renderClinics(); refresh(); } })
+      .withFailureHandler(function(){ /* the server still checks the clinic on send */ }).getDspRoute(name); }, 350); }
+// One company, several stations (Made It Logistics - Vista / - Kearny Mesa): ask which, then use that station's clinics.
+function renderStations(){
+  var r = ROUTES[canonDspClient($('dsp').value)] || {}; var box = $('stationBox'); var list = r.stations || [];
+  box.hidden = !list.length; if (!list.length) return;
+  box.innerHTML = ''; box.appendChild(document.createTextNode('Which location? '));
+  list.forEach(function(n){ var b = document.createElement('button'); b.type = 'button'; b.className = 'ghost small'; b.style.cssText = 'width:auto;margin:4px 6px 0 0';
+    b.textContent = n; b.onclick = function(){ $('dsp').value = n; box.hidden = true; WHEN = null; fetchRoute(); }; box.appendChild(b); });
+}
 function renderClinics(){
-  var route = (CFG.dspRoutes || {})[canonDspClient($('dsp').value)] || {allowed:[], defaultClinic:''};
-  var allowed = route.allowed && route.allowed.length ? route.allowed : CFG.clinics.map(function(c){return c.name;});
+  var k = canonDspClient($('dsp').value);
+  var route = ROUTES[k] || {allowed:[], defaultClinic:''};
+  var allowed = route.allowed && route.allowed.length ? route.allowed : CFG.routedOnly ? [] : CFG.clinics.map(function(c){return c.name;});
+  // Only the clinics set up for this DSP. Unknown company: say so and who to call - never a list to choose from.
+  var msg = $('routeMsg');
+  if (CFG.routedOnly && !allowed.length) {
+    msg.hidden = false;
+    msg.textContent = !k ? 'Type your company name to see your clinic.'
+      : !ROUTES[k] ? 'Looking up your clinic...'
+      : (route.stations && route.stations.length) ? 'Pick your location above.'
+      : 'We don’t have ' + $('dsp').value.trim() + ' set up with a clinic yet. Call Chris or Natalia at ' + CFG.help[1][1] + ' and we’ll set it up.';
+  } else { msg.hidden = true; }
   var old = $('clinic').value; $('clinic').innerHTML = '';
   CFG.clinics.filter(function(c){return allowed.indexOf(c.name) >= 0;}).forEach(function(c){ var o=document.createElement('option'); o.textContent=c.name; $('clinic').appendChild(o); });
   if (allowed.indexOf(old) >= 0) $('clinic').value = old;
@@ -450,7 +482,7 @@ function arrivalValue(){
   return $('arrival').value;
 }
 function arrivalError(v){
-  var c = clinicNow(); if (!c) return 'No clinic is open for orders right now. Please call us.';
+  var c = clinicNow(); if (!c) return (!$('routeMsg').hidden && $('routeMsg').textContent) || 'No clinic is open for orders right now. Please call us.';
   if (!WHEN) return 'Choose when the candidate arrives.';
   if (!v) return 'Pick the date and time.';
   var d = new Date(v);
@@ -486,18 +518,17 @@ function friction(items){ if (!items.length) return; try { google.script.run.log
 function start(cfg){
   CFG = cfg;
   $('leadA').textContent = CFG.lead;
-  CFG.dsps.forEach(function(n){ var o = document.createElement('option'); o.value = n; $('dspList').appendChild(o); });
   var t0 = document.createElement('option'); t0.value = ''; t0.textContent = 'Choose the test'; $('test').appendChild(t0);
   CFG.tests.forEach(function(n){ var o = document.createElement('option'); o.textContent = n; $('test').appendChild(o); });
   try { var lastTest = localStorage.getItem('dspOrderTest'); if (CFG.tests.indexOf(lastTest) >= 0) $('test').value = lastTest; } catch(e) {}
   $('test').addEventListener('change', function(){ $('testErr').textContent = ''; try { localStorage.setItem('dspOrderTest', $('test').value); } catch(e) {} });
-  renderClinics();
+  renderClinics(); fetchRoute();
   var help = $('help'); help.hidden = false; help.innerHTML = '<b>Questions or help</b><br>';
   CFG.help.forEach(function(h){ var p = document.createElement('div'); p.textContent = h[0] + ': '; var a = document.createElement('a'); a.href = 'tel:' + h[1].replace(/\D/g,''); a.textContent = h[1]; p.appendChild(a); help.appendChild(p); });
   var pb = document.createElement('button'); pb.type = 'button'; pb.className = 'linkbtn'; pb.textContent = 'Problem with this page? Tell us';
   pb.addEventListener('click', openProblem); var pd = document.createElement('div'); pd.style.marginTop = '8px'; pd.appendChild(pb); help.appendChild(pd);
   $('clinic').addEventListener('change', function(){ WHEN = null; $('pickBox').hidden = true; refresh(); });
-  $('dsp').addEventListener('input', function(){ WHEN = null; $('pickBox').hidden = true; renderClinics(); refresh(); });
+  $('dsp').addEventListener('input', function(){ WHEN = null; $('pickBox').hidden = true; renderClinics(); refresh(); fetchRoute(); });
   $('meChange').addEventListener('click', changeMe);
   $('meOrders').addEventListener('click', showOrders);
   $('doneOrders').addEventListener('click', showOrders);
@@ -559,6 +590,9 @@ F.addEventListener('submit', function(ev){
     if (c.candEmail === fd.reqEmail) warn(t, 'This email is the same as yours. The authorization will go to you - make sure the candidate gets it.');
   });
   $('sendErr').textContent = '';
+  $('consent').checked = false;
+  $('consentText').textContent = (fd.candidates.length > 1 ? 'These candidates agreed' : 'The candidate agreed') +
+    ' to this drug test as part of hiring at ' + fd.dsp + ', and to the result going to ' + fd.dsp + '.';
   $('sendBtn').textContent = fd.candidates.length > 1 ? 'Confirm and send ' + fd.candidates.length + ' orders' : 'Confirm and send';
   views('reviewView');
 });
@@ -569,12 +603,18 @@ function table(parent, rows){
 }
 function warn(t, text){ var tr = document.createElement('tr'); var td = document.createElement('td'); td.colSpan = 2; td.className = 'warnline'; td.textContent = text; tr.appendChild(td); t.appendChild(tr); }
 $('editBtn').addEventListener('click', function(){ views('formView'); });
+$('consent').addEventListener('change', function(){ if (this.checked) $('sendErr').textContent = ''; });
 
 // ---------------- step 2: send once
 $('sendBtn').addEventListener('click', function(){
   if (SENDING || !PENDING) return;
   var bad = arrivalError(PENDING.arrival);
   if (bad) { $('sendErr').textContent = bad + ' Press Edit to change the time.'; return; }
+  var rt = ROUTES[canonDspClient(PENDING.dsp)];
+  if (rt && rt.allowed.length && rt.allowed.indexOf(PENDING.clinic) < 0) {
+    $('sendErr').textContent = PENDING.dsp + ' uses ' + rt.allowed.join(' or ') + '. Press Edit and pick the clinic.'; return; }
+  if (!$('consent').checked) { $('sendErr').textContent = 'Tick the box to confirm the candidate agreed to the test.'; return; }
+  PENDING.consent = true;
   SENDING = true;
   var btn = this; btn.disabled = true; btn.textContent = 'Sending...'; $('editBtn').disabled = true;
   var fd = PENDING;
